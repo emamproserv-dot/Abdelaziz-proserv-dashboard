@@ -1,4 +1,9 @@
 # =============================
+#  تثبيت المكتبات المطلوبة
+# =============================
+!pip install streamlit pandas numpy plotly openpyxl xlsxwriter -q
+
+# =============================
 #  كتابة ملف لوحة التحكم
 # =============================
 dashboard_code = '''
@@ -287,11 +292,11 @@ with open('dashboard.py', 'w', encoding='utf-8') as f:
     f.write(dashboard_code)
 
 # =============================
-#  تشغيل لوحة التحكم
+#  تشغيل لوحة التحكم باستخدام localtunnel
 # =============================
 import subprocess
 import time
-from pyngrok import ngrok
+import urllib.request
 
 # تشغيل Streamlit في الخلفية
 process = subprocess.Popen(['streamlit', 'run', 'dashboard.py', '--server.port=8501'])
@@ -299,7 +304,7 @@ process = subprocess.Popen(['streamlit', 'run', 'dashboard.py', '--server.port=8
 # انتظار بدء الخادم
 time.sleep(5)
 
-# إنشاء نفق عام
-public_url = ngrok.connect(8501).public_url
-print(f"رابط الوصول العام: {public_url}")
-print("Local URL: http://localhost:8501")
+# الحصول على رابط عام باستخدام localtunnel
+print("جاري إنشاء رابط عام...")
+!npm install -g localtunnel
+!lt --port 8501
