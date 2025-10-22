@@ -1,18 +1,8 @@
-# =============================
-#  تثبيت المكتبات المطلوبة
-# =============================
-!pip install streamlit pandas numpy plotly openpyxl xlsxwriter -q
-
-# =============================
-#  كتابة ملف لوحة التحكم
-# =============================
-dashboard_code = '''
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import os
 from io import BytesIO
 
 # إعدادات الصفحة
@@ -285,26 +275,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-'''
-
-# كتابة الكود إلى ملف
-with open('dashboard.py', 'w', encoding='utf-8') as f:
-    f.write(dashboard_code)
-
-# =============================
-#  تشغيل لوحة التحكم باستخدام localtunnel
-# =============================
-import subprocess
-import time
-import urllib.request
-
-# تشغيل Streamlit في الخلفية
-process = subprocess.Popen(['streamlit', 'run', 'dashboard.py', '--server.port=8501'])
-
-# انتظار بدء الخادم
-time.sleep(5)
-
-# الحصول على رابط عام باستخدام localtunnel
-print("جاري إنشاء رابط عام...")
-!npm install -g localtunnel
-!lt --port 8501
