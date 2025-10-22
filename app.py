@@ -1,3 +1,4 @@
+import gdown
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -5,9 +6,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 from io import BytesIO
 
-
-# في بداية الملف
-import gdown
 
 # في دالة main() قبل تحميل الملف
 if uploaded_file is None:
@@ -307,5 +305,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
