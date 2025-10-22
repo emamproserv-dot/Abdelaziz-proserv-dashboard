@@ -1,3 +1,11 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+from io import BytesIO
+
+
 # في بداية الملف
 import gdown
 
@@ -29,13 +37,6 @@ if uploaded_file is None:
         st.info("يرجى رفع ملف Excel أو إدخال رابط Google Drive")
         return
         
-        import streamlit as st
-import pandas as pd
-import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
-from io import BytesIO
-
 # إعدادات الصفحة
 st.set_page_config(
     page_title="لوحة تحليل نتائج الأعمال",
@@ -306,4 +307,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
