@@ -4,6 +4,8 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from io import BytesIO
+import gdown
+
 
 # إعدادات الصفحة
 st.set_page_config(
@@ -77,7 +79,34 @@ def to_excel(df):
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Sheet1')
     return output.getvalue()
-
+# في دالة main() قبل تحميل الملف
+if uploaded_file is None:
+    st.sidebar.subheader("تحميل البيانات من Google Drive")
+    file_url = st.sidebar.text_input(
+        "رابط ملف Google Drive (مشاركة مع أي شخص لديه الرابط)",
+        help="انسخ الرابط من Google Drive بعد مشاركة الملف"
+    )
+    
+    if file_url:
+        try:
+            # تحويل رابط Google Drive إلى رابط تحميل مباشر
+            file_id = file_url.split("/")[-2]
+            download_url = f"https://drive.google.com/uc?id={file_id}"
+            
+            # تحميل الملف
+            output = "data.xlsx"
+            gdown.download(download_url, output, quiet=False)
+            
+            # قراءة الملف
+            df, df_financial = load_data(output)
+            st.sidebar.success("تم تحميل البيانات بنجاح!")
+        except Exception as e:
+            st.sidebar.error(f"خطأ في تحميل الملف: {e}")
+            return
+    else:
+        st.info("يرجى رفع ملف Excel أو إدخال رابط Google Drive")
+        return
+        
 # =============================
 #  واجهة المستخدم
 # =============================
@@ -275,3 +304,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
