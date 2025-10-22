@@ -1,7 +1,12 @@
 # =============================
-#  كتابة كود لوحة التحكم في ملف
-# =================##
-%%writefile dashboard.py
+#  تثبيت المكتبات المطلوبة
+# =============================
+!pip install streamlit pandas numpy plotly openpyxl xlsxwriter pyngrok -q
+
+# =============================
+#  كتابة ملف لوحة التحكم
+# =============================
+dashboard_code = '''
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -280,6 +285,11 @@ def main():
 
 if __name__ == "__main__":
     main()
+'''
+
+# كتابة الكود إلى ملف
+with open('dashboard.py', 'w', encoding='utf-8') as f:
+    f.write(dashboard_code)
 
 # =============================
 #  تشغيل لوحة التحكم
