@@ -3,76 +3,98 @@ import pandas as pd
 import plotly.express as px
 
 # =============================
-# إعداد الصفحة
+#  LOAD DATA
 # =============================
-st.set_page_config(
-    page_title="Proserv Dashboard",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# =============================
-# تحميل البيانات
-# =============================
-@st.cache_data
-def load_data():
-    df = pd.read_excel("Proserv V - Copy.xlsx")
-    return df
-
-df = load_data()
-
-st.title("📊 Proserv Dashboard")
-st.markdown("عرض شامل للبيانات في صفحة واحدة مع تبويبات (Tabs)")
-
-# =============================
-# Tabs
-# =============================
-tab1, tab2, tab3, tab4 = st.tabs(["📈 Overview", "🏢 Companies", "📅 Contracts", "📍 Sectors"])
-
-# =============================
-# Tab 1 – Overview
-# =============================
-with tab1:
-    st.subheader("General Overview")
-    st.metric("Total Companies", len(df["Company Name"].unique()))
-    st.metric("Total Records", len(df))
-    
-    if "Service Type" in df.columns:
-        service_counts = df["Service Type"].value_counts().reset_index()
-        service_counts.columns = ["Service Type", "Count"]
-        fig = px.pie(service_counts, names="Service Type", values="Count", title="Contracts by Service Type")
-        st.plotly_chart(fig, use_container_width=True)
-
-# =============================
-# Tab 2 – Companies
-# =============================
-with tab2:
-    st.subheader("Company Details")
-    selected_company = st.selectbox("Select Company", sorted(df["Company Name"].unique()))
-    company_data = df[df["Company Name"] == selected_company]
-    st.dataframe(company_data, use_container_width=True)
-
-# =============================
-# Tab 3 – Contracts
-# =============================
-with tab3:
-    st.subheader("Contract Analysis")
-    if "Start Year" in df.columns:
-        year_summary = df.groupby("Start Year").size().reset_index(name="Contracts")
-        fig = px.bar(year_summary, x="Start Year", y="Contracts", title="Contracts by Start Year")
-        st.plotly_chart(fig, use_container_width=True)
+uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx", "csv"])
+if uploaded_file is not None:
+    if uploaded_file.name.endswith(".xlsx"):
+        df = pd.read_excel(uploaded_file)
     else:
-        st.warning("Column 'Start Year' not found in your dataset.")
+        df = pd.read_csv(uploaded_file)
 
-# =============================
-# Tab 4 – Sectors
-# =============================
-with tab4:
-    st.subheader("Sector Distribution")
-    if "Sector" in df.columns:
-        sector_counts = df["Sector"].value_counts().reset_index()
-        sector_counts.columns = ["Sector", "Count"]
-        fig = px.bar(sector_counts, x="Sector", y="Count", title="Clients by Sector")
+    # تحويل تاريخ التجديد إلى صيغة تاريخ
+    df["Renewal Date"] = pd.to_datetime(df["Renewal Date"].astype(str) + "-01-01", errors="coerce")
+
+    # =============================
+    #  DASHBOARD STRUCTURE
+    # =============================
+    st.set_page_config(page_title="Proserv Dashboard", layout="wide")
+
+    st.title("📊 Proserv V Dashboard")
+
+    # Tabs
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "Dashboard Overview",
+        "Customer Trends",
+        "Revenue Analytics",
+        "Outsource Summary"
+    ])
+
+    # =============================
+    #  TAB 1 - Overview
+    # =============================
+    with tab1:
+        st.header("📈 Dashboard Overview")
+
+        years = sorted(df["Renewal Date"].dt.year.dropna().unique())
+        selected_year = st.selectbox("Select Year", years)
+
+        df_year = df[df["Renewal Date"].dt.year == selected_year]
+
+        st.metric("Total Contracts", len(df_year))
+        st.metric("Unique Clients", df_year["Client Name"].nunique())
+
+        fig = px.bar(
+            df_year.groupby("Service Type").size().reset_index(name="Count"),
+            x="Service Type",
+            y="Count",
+            title=f"Contracts by Service Type ({selected_year})"
+        )
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.warning("Column 'Sector' not found in your dataset.")
+
+    # =============================
+    #  TAB 2 - Customer Trends
+    # =============================
+    with tab2:
+        st.header("📊 Customer Trends")
+
+        trend = df.groupby(df["Renewal Date"].dt.year).size().reset_index(name="Contracts")
+        fig2 = px.line(trend, x="Renewal Date", y="Contracts", title="Contracts Over Time")
+        st.plotly_chart(fig2, use_container_width=True)
+
+    # =============================
+    #  TAB 3 - Revenue Analytics
+    # =============================
+    with tab3:
+        st.header("💰 Revenue Analytics")
+
+        if "Total Service Fee In EGP" in df.columns:
+            rev = df.groupby(df["Renewal Date"].dt.year)["Total Service Fee In EGP"].sum().reset_index()
+            fig3 = px.bar(rev, x="Renewal Date", y="Total Service Fee In EGP", title="Total Revenue Over Time")
+            st.plotly_chart(fig3, use_container_width=True)
+        else:
+            st.warning("Column 'Total Service Fee In EGP' not found in your file.")
+
+    # =============================
+    #  TAB 4 - Outsource Summary
+    # =============================
+    with tab4:
+        st.header("👥 Outsource Summary")
+
+        if "Service Type" in df.columns:
+            outsource_df = df[df["Service Type"].str.contains("Outsource", case=False, na=False)]
+            st.write(outsource_df)
+
+            fig4 = px.pie(outsource_df, names="Client Name", title="Outsource Clients Distribution")
+            st.plotly_chart(fig4, use_container_width=True)
+        else:
+            st.warning("Column 'Service Type' not found in your file.")
+
+    # =============================
+    #  DOWNLOAD DATA
+    # =============================
+    st.download_button("📥 Download filtered data (Excel)", df_year.to_csv(index=False).encode('utf-8'),
+                       f"filtered_data_{selected_year}.csv", "text/csv")
+
+else:
+    st.info("👆 Please upload your Excel or CSV file to begin.")
