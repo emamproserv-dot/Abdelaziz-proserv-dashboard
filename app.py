@@ -1,279 +1,106 @@
+# =============================
+#  Streamlit Dashboard for Proserv
+# =============================
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from io import BytesIO
 
-# إعدادات الصفحة
-st.set_page_config(
-    page_title="لوحة تحليل نتائج الأعمال",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="Proserv Dashboard", layout="wide")
 
-# CSS مخصص
-st.markdown("""
-<style>
-    .main-header {
-        font-size: 2.5rem;
-        color: #1E88E5;
-        text-align: center;
-        margin-bottom: 1rem;
-    }
-    .metric-card {
-        background-color: #F8F9FA;
-        border-radius: 10px;
-        padding: 1rem;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        margin-bottom: 1rem;
-    }
-    .metric-value {
-        font-size: 2rem;
-        font-weight: bold;
-        color: #1565C0;
-    }
-    .metric-label {
-        font-size: 1rem;
-        color: #546E7A;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# دالة تحميل البيانات
+# =============================
+#  Load Data
+# =============================
 @st.cache_data
-def load_data(uploaded_file):
-    df = pd.read_excel(uploaded_file)
-    
-    # تنظيف وإعداد البيانات
-    df.columns = df.columns.str.strip()
-    df.rename(columns={
-        "Company Name": "Company",
-        "Department": "Department",
-        "Renewal Number": "Renewal_No",
-        "Renewal Date": "Renewal_Date",
-        "Contract Duration (Months)": "Duration_Months",
-        "Cost": "Cost"
-    }, inplace=True)
-    
-    df["Cost"] = df["Cost"].astype(str)
-    df["Renewal_Date"] = pd.to_datetime(df["Renewal_Date"].astype(str) + "-01-01", errors="coerce")
-    df["Year"] = df["Renewal_Date"].dt.year
-    df = df.dropna(subset=["Company", "Year"])
-    df["Numeric_Cost"] = pd.to_numeric(df["Cost"].str.replace("[^0-9.]", "", regex=True), errors="coerce")
-    
-    # استبعاد قسم Outsource من الحسابات المالية
-    df_financial = df[df["Department"].str.lower() != "outsource"].copy()
-    
-    # إضافة نوع العقد (جديد أو تجديد)
-    df["Contract_Type"] = df["Renewal_No"].apply(lambda x: "New" if x == 1 else "Renewal")
-    
-    return df, df_financial
+def load_data():
+    clients = pd.read_excel("clients.xlsx")
+    finance = pd.read_excel("finance.xlsx")
+    return clients, finance
 
-# دالة تحويل DataFrame إلى Excel
-def to_excel(df):
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Sheet1')
-    return output.getvalue()
+clients, finance = load_data()
 
 # =============================
-#  واجهة المستخدم
+#  Clean Client Data
 # =============================
-def main():
-    st.sidebar.header("الإعدادات والفلاتر")
-    
-    uploaded_file = st.sidebar.file_uploader(
-        "ارفع ملف Excel", 
-        type=["xlsx", "xls"],
-        help="يرجى رفع ملف Excel يحتوي على بيانات العملاء"
-    )
-    
-    if uploaded_file is not None:
-        df, df_financial = load_data(uploaded_file)
-        
-        # الحصول على القيم الفريدة للفلاتر
-        years = sorted(df["Year"].dropna().unique())
-        companies = sorted(df["Company"].unique())
-        departments = sorted(df["Department"].unique())
-        
-        # الفلاتر
-        selected_years = st.sidebar.multiselect("اختر السنوات", options=years, default=years)
-        selected_companies = st.sidebar.multiselect("اختر الشركات", options=companies, default=companies[:10])
-        selected_departments = st.sidebar.multiselect("اختر الأقسام", options=departments, default=departments)
-        
-        # تطبيق الفلاتر
-        filtered_df = df[
-            (df["Year"].isin(selected_years)) &
-            (df["Company"].isin(selected_companies)) &
-            (df["Department"].isin(selected_departments))
-        ]
-        
-        filtered_financial = df_financial[
-            (df_financial["Year"].isin(selected_years)) &
-            (df_financial["Company"].isin(selected_companies)) &
-            (df_financial["Department"].isin(selected_departments))
-        ]
-        
-        # =============================
-        #  الرئيسية
-        # =============================
-        st.markdown("<h1 class='main-header'>لوحة تحليل نتائج الأعمال</h1>", unsafe_allow_html=True)
-        
-        # =============================
-        #  نظرة عامة
-        # =============================
-        st.header("نظرة عامة")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            total_companies = filtered_df["Company"].nunique()
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-value">{total_companies}</div>
-                <div class="metric-label">إجمالي الشركات</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col2:
-            total_revenue = filtered_financial["Numeric_Cost"].sum()
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-value">{total_revenue:,.2f}</div>
-                <div class="metric-label">إجمالي الإيرادات</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col3:
-            avg_contract_value = filtered_financial["Numeric_Cost"].mean()
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-value">{avg_contract_value:,.2f}</div>
-                <div class="metric-label">متوسط قيمة العقد</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col4:
-            total_contracts = len(filtered_df)
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-value">{total_contracts}</div>
-                <div class="metric-label">إجمالي العقود</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # =============================
-        #  اتجاهات العملاء
-        # =============================
-        st.header("اتجاهات العملاء")
-        
-        # نمو العملاء
-        client_growth = filtered_df.groupby("Year")["Company"].nunique().reset_index(name="Active_Clients")
-        client_growth["Growth(%)"] = client_growth["Active_Clients"].pct_change() * 100
-        
-        fig1 = px.bar(
-            client_growth, 
-            x="Year", 
-            y="Active_Clients", 
-            title="نمو العملاء عبر السنوات", 
-            text="Active_Clients", 
-            template="plotly_white"
-        )
-        st.plotly_chart(fig1, use_container_width=True)
-        
-        st.download_button(
-            label="تحميل جدول نمو العملاء",
-            data=to_excel(client_growth),
-            file_name="customer_growth.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-        
-        # =============================
-        #  تحليل الإيرادات
-        # =============================
-        st.header("تحليل الإيرادات")
-        
-        # نمو الإيرادات
-        revenue_growth = filtered_financial.groupby("Year")["Numeric_Cost"].sum().reset_index(name="Total_Cost")
-        revenue_growth["Growth(%)"] = revenue_growth["Total_Cost"].pct_change() * 100
-        
-        fig2 = px.line(
-            revenue_growth, 
-            x="Year", 
-            y="Total_Cost", 
-            markers=True, 
-            title="نمو حجم الأعمال عبر السنوات", 
-            template="plotly_white"
-        )
-        st.plotly_chart(fig2, use_container_width=True)
-        
-        st.download_button(
-            label="تحميل جدول نمو الإيرادات",
-            data=to_excel(revenue_growth),
-            file_name="revenue_growth.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-        
-        # =============================
-        #  تحليل العقود
-        # =============================
-        st.header("تحليل العقود")
-        
-        # مقارنة العقود الجديدة والمجددة
-        contract_type_counts = filtered_df["Contract_Type"].value_counts().reset_index()
-        contract_type_counts.columns = ["Contract_Type", "Count"]
-        
-        fig3 = px.pie(
-            contract_type_counts, 
-            names="Contract_Type", 
-            values="Count", 
-            title="مقارنة بين العقود الجديدة والمجددة",
-            template="plotly_white", 
-            hole=0.3
-        )
-        st.plotly_chart(fig3, use_container_width=True)
-        
-        st.download_button(
-            label="تحليل أنواع العقود",
-            data=to_excel(contract_type_counts),
-            file_name="contract_types.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-        
-        # =============================
-        #  توزيع الأقسام
-        # =============================
-        st.header("توزيع الأقسام")
-        
-        dept_distribution = filtered_df.groupby("Department")["Company"].nunique().reset_index(name="Unique_Clients")
-        
-        fig4 = px.bar(
-            dept_distribution, 
-            x="Department", 
-            y="Unique_Clients",
-            title="توزيع العملاء حسب القسم",
-            text="Unique_Clients", 
-            template="plotly_white"
-        )
-        fig4.update_layout(xaxis_tickangle=-30)
-        st.plotly_chart(fig4, use_container_width=True)
-        
-        st.download_button(
-            label="تحميل توزيع الأقسام",
-            data=to_excel(dept_distribution),
-            file_name="department_distribution.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-        
-        st.markdown("---")
-        st.markdown("تم تطوير لوحة التحكم بواسطة فريق تحليل البيانات")
-    
-    else:
-        st.info("يرجى رفع ملف Excel لعرض لوحة التحكم")
+clients.columns = clients.columns.str.strip()
+clients.rename(columns={
+    "Company Name": "Company",
+    "Department": "Department",
+    "Renewal Number": "Renewal_No",
+    "Renewal Date": "Renewal_Date"
+}, inplace=True)
 
-if __name__ == "__main__":
-    main()
+clients["Renewal_Date"] = pd.to_datetime(clients["Renewal_Date"].astype(str) + "-01-01", errors="coerce")
+clients["Year"] = clients["Renewal_Date"].dt.year
+clients = clients.dropna(subset=["Company", "Department", "Year"])
 
+# =============================
+#  Clean Finance Data
+# =============================
+finance.columns = finance.columns.str.strip()
+finance["Year"] = finance["Year"].astype(int)
 
+# =============================
+#  Dashboard Sections
+# =============================
+st.title("📊 Proserv Strategic & Financial Dashboard")
+
+# -----------------------------
+st.header("1️⃣ Active Clients by Year")
+clients_per_year = clients.groupby("Year")["Company"].nunique().reset_index(name="Active_Clients")
+clients_per_year["Growth_%"] = (clients_per_year["Active_Clients"].pct_change() * 100).round(1)
+fig1 = px.bar(clients_per_year, x="Year", y="Active_Clients", text="Active_Clients",
+              color_discrete_sequence=["#0077b6"], template="plotly_white")
+fig1.update_traces(textposition="outside")
+st.plotly_chart(fig1, use_container_width=True)
+
+# -----------------------------
+st.header("2️⃣ Renewal Frequency")
+renewal_counts = clients.groupby("Company")["Renewal_No"].max().value_counts().sort_index().reset_index()
+renewal_counts.columns = ["Renewal_Times", "Number_of_Clients"]
+fig2 = px.bar(renewal_counts, x="Renewal_Times", y="Number_of_Clients",
+              text="Number_of_Clients", color_discrete_sequence=["#00b4d8"], template="plotly_white")
+fig2.update_traces(textposition="outside")
+st.plotly_chart(fig2, use_container_width=True)
+
+# -----------------------------
+st.header("3️⃣ Market Share by Department (All Contracts)")
+dept_share = clients.groupby("Department")["Company"].count().reset_index(name="Total_Contracts")
+fig3 = px.pie(dept_share, names="Department", values="Total_Contracts", hole=0.45,
+              template="plotly_white", title="Market Concentration by Contract Count")
+fig3.update_traces(textinfo="label+percent", pull=[0.05]*len(dept_share))
+st.plotly_chart(fig3, use_container_width=True)
+
+# -----------------------------
+st.header("4️⃣ Key Clients Contribution Estimate")
+client_contracts = clients.groupby(["Department", "Company"])["Renewal_No"].max().reset_index()
+client_contracts["Total_Contracts"] = client_contracts["Renewal_No"] + 1
+merged_clients_profit = pd.merge(client_contracts, finance[["Department", "Year", "Total Profit"]],
+                                 on="Department", how="left")
+dept_totals = client_contracts.groupby("Department")["Total_Contracts"].sum().reset_index(name="Dept_Total_Contracts")
+merged_clients_profit = pd.merge(merged_clients_profit, dept_totals, on="Department", how="left")
+merged_clients_profit["Contracts_Share_%"] = round(100 * merged_clients_profit["Total_Contracts"] / merged_clients_profit["Dept_Total_Contracts"], 1)
+merged_clients_profit["Estimated_Profit"] = round(merged_clients_profit["Contracts_Share_%"] / 100 * merged_clients_profit["Total Profit"], 2)
+top_clients_per_dept = merged_clients_profit.sort_values(["Department", "Estimated_Profit"], ascending=[True, False])
+top_clients_15 = top_clients_per_dept.groupby("Department").head(15).reset_index(drop=True)
+
+fig_top15 = px.bar(
+    top_clients_15.sort_values(["Department", "Estimated_Profit"], ascending=[True, False]),
+    x="Department",
+    y="Estimated_Profit",
+    color="Company",
+    text="Estimated_Profit",
+    labels={"Estimated_Profit": "Estimated Profit (EGP)", "Department": "Department"},
+    template="plotly_white",
+    height=600,
+    title="Top 15 Clients Contribution per Department"
+)
+fig_top15.update_traces(textposition="inside")
+st.plotly_chart(fig_top15, use_container_width=True)
+
+# -----------------------------
+st.header("5️⃣ Financial Performance Overview")
+st.dataframe(finance)
+
+st.success("✅ Dashboard Loaded Successfully")
