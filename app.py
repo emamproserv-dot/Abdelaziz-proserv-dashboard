@@ -59,21 +59,6 @@ fig1.update_traces(textposition="outside")
 st.plotly_chart(fig1, use_container_width=True)
 
 # =============================
-#  2. Renewal Frequency
-# =============================
-st.subheader("2️⃣ Distribution of Client Renewals")
-renewal_counts = clients.groupby("Company")["Renewal_No"].max().value_counts().sort_index().reset_index()
-renewal_counts.columns = ["Renewal_Times", "Number_of_Clients"]
-
-fig2 = px.bar(
-    renewal_counts, x="Renewal_Times", y="Number_of_Clients",
-    title="Distribution of Client Renewals", text="Number_of_Clients",
-    template="plotly_white", color_discrete_sequence=["#00b4d8"]
-)
-fig2.update_traces(textposition="outside")
-st.plotly_chart(fig2, use_container_width=True)
-
-# =============================
 #  3. Market Share by Department
 # =============================
 st.subheader("3️⃣ Market Concentration by Contract Count")
@@ -149,59 +134,80 @@ fig8 = px.line(finance, x="Year", y="Profit Margin_%", color="Department",
 st.plotly_chart(fig8, use_container_width=True)
 
 # =============================
-#  7. Correlation Contracts & Finance
+#  6. Financial Performance
 # =============================
-st.subheader("7️⃣ Correlation: Contracts vs Finance")
+fig6 = px.bar(finance, x="Year", y="Total Sales", color="Department",
+              title="Total Sales by Department and Year",
+              template="plotly_white", barmode="group")
+fig6.show()
+
+fig7 = px.bar(finance, x="Year", y="Total Profit", color="Department",
+              title="Total Profit by Department and Year",
+              template="plotly_white", barmode="group")
+fig7.show()
+
+finance["Profit Margin_%"] = round((finance["Total Profit"] / finance["Total Sales"]) * 100, 1)
+
+fig8 = px.line(finance, x="Year", y="Profit Margin_%", color="Department",
+               title="Profit Margin by Department", markers=True, template="plotly_white")
+fig8.show()
+
+# =============================
+#  9. Summary Overview
+# =============================
+summary = finance.groupby("Department")[["Total Sales", "Total Profit"]].sum().reset_index()
+summary["Overall Margin_%"] = round((summary["Total Profit"] / summary["Total Sales"]) * 100, 1)
+display(summary)
+
+# =============================
+#  7. Correlation Between Contracts & Financial Performance
+# =============================
+
+# ---- Version 1: Based on Total Contracts (includes renewals) ----
 contracts_by_dept_all = clients.groupby(["Department", "Year"])["Company"].count().reset_index(name="Contracts_Count")
+
 merged_all = pd.merge(contracts_by_dept_all, finance, on=["Department", "Year"], how="left")
+
+corr_sales_all = merged_all["Contracts_Count"].corr(merged_all["Total Sales"])
+corr_profit_all = merged_all["Contracts_Count"].corr(merged_all["Total Profit"])
+
+print("🔹 Correlation based on ALL Contracts (including renewals):")
+print(f"   ↳ Contracts vs Sales:  {corr_sales_all:.2f}")
+print(f"   ↳ Contracts vs Profit: {corr_profit_all:.2f}\n")
+
+fig_corr1 = px.scatter(
+    merged_all, x="Contracts_Count", y="Total Sales", color="Department",
+    trendline="ols", title="Correlation (All Contracts) Between Contracts Count and Total Sales",
+    template="plotly_white", hover_data=["Year"]
+)
+fig_corr1.show()
 
 fig_corr2 = px.scatter(
     merged_all, x="Contracts_Count", y="Total Profit", color="Department",
-    trendline="ols", title="Correlation: Contracts Count vs Total Profit", template="plotly_white", hover_data=["Year"]
+    trendline="ols", title="Correlation (All Contracts) Between Contracts Count and Total Profit",
+    template="plotly_white", hover_data=["Year"]
 )
-st.plotly_chart(fig_corr2, use_container_width=True)
+fig_corr2.show()
 
 # =============================
 #  8. Service Mix & Client Distribution
 # =============================
-st.subheader("8️⃣ Service Mix (New vs Renewed Clients)")
 clients["Client_Type"] = np.where(clients["Renewal_No"] == 0, "New Client", "Renewed Client")
+
 service_mix = clients.groupby(["Department", "Client_Type"])["Company"].nunique().reset_index(name="Client_Count")
+
 total_per_dept = service_mix.groupby("Department")["Client_Count"].transform("sum")
 service_mix["Share_%"] = round(100 * service_mix["Client_Count"] / total_per_dept, 1)
 
 fig11 = px.bar(
     service_mix, x="Department", y="Client_Count", color="Client_Type", text="Share_%",
-    title="Service Mix and Client Distribution", template="plotly_white", barmode="stack"
+    title="Service Mix and Client Distribution (New vs Renewed Clients)",
+    template="plotly_white", barmode="stack"
 )
 fig11.update_traces(textposition="outside")
-st.plotly_chart(fig11, use_container_width=True)
+fig11.show()
 
-# =============================
-#  9. Top Clients Contribution
-# =============================
-st.subheader("9️⃣ Top Clients Contribution per Department")
-client_contracts = clients.groupby(["Department", "Company", "Year"])["Renewal_No"].max().reset_index()
-client_contracts["Total_Contracts"] = client_contracts["Renewal_No"] + 1
 
-merged_clients_profit = pd.merge(client_contracts, finance[["Department", "Year", "Total Profit"]],
-                                 on=["Department","Year"], how="left")
-dept_totals = client_contracts.groupby("Department")["Total_Contracts"].sum().reset_index(name="Dept_Total_Contracts")
-merged_clients_profit = pd.merge(merged_clients_profit, dept_totals, on="Department", how="left")
 
-merged_clients_profit["Contracts_Share_%"] = round(100 * merged_clients_profit["Total_Contracts"] / merged_clients_profit["Dept_Total_Contracts"], 1)
-merged_clients_profit["Estimated_Profit"] = round(merged_clients_profit["Contracts_Share_%"] / 100 * merged_clients_profit["Total Profit"], 2)
+print("✅ Full Strategic & Financial Analysis Completed — No duplicates were removed, all contracts included.")
 
-top_clients_per_dept = merged_clients_profit.sort_values(["Department", "Estimated_Profit"], ascending=[True, False])
-top_clients_15 = top_clients_per_dept.groupby("Department").head(15).reset_index(drop=True)
-
-fig_top15 = px.bar(
-    top_clients_15.sort_values(["Department", "Estimated_Profit"], ascending=[True, False]),
-    x="Department", y="Estimated_Profit", color="Company", text="Estimated_Profit",
-    title="Top 15 Clients Contribution per Department", template="plotly_white", height=600
-)
-fig_top15.update_traces(textposition="inside")
-fig_top15.update_layout(yaxis_title="Estimated Profit (EGP)", xaxis_title="Department", legend_title_text="Client")
-st.plotly_chart(fig_top15, use_container_width=True)
-
-st.success("✅ Full Strategic & Financial Analysis Completed")
